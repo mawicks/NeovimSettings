@@ -1,0 +1,89 @@
+-- ~/.config/nvim/lua/user/dap-zig.lua
+local dap = require("dap")
+local dapui = require("dapui")
+
+-- ====================
+-- DAP Adapter (codelldb via Mason)
+-- ====================
+dap.adapters.zig = {
+  type = "server",
+  port = "${port}",
+  executable = {
+    command = vim.fn.stdpath("data") .. "/mason/packages/codelldb/extension/adapter/codelldb",
+    args = { "--port", "${port}" },
+  },
+  name = "codelldb",
+}
+
+-- ====================
+-- DAP Configurations for Zig
+-- ====================
+dap.configurations.zig = {
+  {
+    name = "Debug Zig test binary",
+    type = "zig",
+    request = "launch",
+    program = function()
+      -- Binary emitted by last test run
+      return vim.fn.getcwd() .. "/__zig_test_bin__"
+    end,
+    cwd = "${workspaceFolder}",
+    stopOnEntry = false,
+    args = {},
+  },
+}
+
+-- ====================
+-- Auto open DAP UI
+-- ====================
+dap.listeners.after.event_initialized["dapui_config"] = function()
+  dapui.open()
+end
+dap.listeners.before.event_terminated["dapui_config"] = function()
+  dapui.close()
+end
+dap.listeners.before.event_exited["dapui_config"] = function()
+  dapui.close()
+end
+
+-- ====================
+-- Unified DAP Keymaps
+-- ====================
+vim.keymap.set("n", "<leader>zdb", dap.toggle_breakpoint, { noremap = true, silent = true })
+vim.keymap.set("n", "<leader>zdn", function()
+  local ft = vim.bo.filetype
+  local configs = dap.configurations[ft]
+  if configs and #configs > 0 then
+    dap.run(configs[1])
+  else
+    print("No DAP configuration for filetype: " .. ft)
+  end
+end, { noremap = true, silent = true })
+vim.keymap.set("n", "<leader>du", dapui.toggle, { noremap = true, silent = true })
+
+-- ====================
+-- Zig Test Runner
+-- ====================
+local function run_nearest_zig_test()
+  local line = vim.fn.getline(".")
+  local test_name = line:match('test%s+"([^"]+)"')
+  local file = vim.fn.expand("%")
+
+  if test_name then
+    vim.cmd("split | terminal zig test -femit-bin=__zig_test_bin__ " .. file
+      .. ' --test-filter "' .. test_name .. '"')
+  else
+    print("No test found on current line, running entire file instead.")
+    vim.cmd("split | terminal zig test -femit-bin=__zig_test_bin__ " .. file)
+  end
+end
+
+local function run_all_zig_tests()
+  local file = vim.fn.expand("%")
+  vim.cmd("split | terminal zig test -femit-bin=__zig_test_bin__ " .. file)
+end
+
+-- Keymaps
+vim.keymap.set("n", "<leader>ztn", run_nearest_zig_test, { noremap = true, silent = true })
+vim.keymap.set("n", "<leader>ztt", run_all_zig_tests, { noremap = true, silent = true })
+
