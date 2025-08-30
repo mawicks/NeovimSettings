@@ -25,7 +25,3 @@ end
 
 require "lazy_setup"
 require "polish"
-
-require("user.dap-zig")
-require("user.dap-python")
-require("user.dap-keymaps")
