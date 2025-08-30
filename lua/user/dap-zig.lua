@@ -20,11 +20,33 @@ dap.adapters.zig = {
 -- ====================
 dap.configurations.zig = {
   {
-    name = "Debug Zig test binary",
+    name = "Debug Zig test binary (all tests)",
     type = "zig",
     request = "launch",
     program = function()
-      -- Binary emitted by last test run
+      local file = vim.fn.expand("%")
+      vim.fn.system("zig test -femit-bin=__zig_test_bin__ " .. file)
+      return vim.fn.getcwd() .. "/__zig_test_bin__"
+    end,
+    cwd = "${workspaceFolder}",
+    stopOnEntry = false,
+    args = {},
+  },
+  {
+    name = "Debug Zig test binary (nearest test)",
+    type = "zig",
+    request = "launch",
+    program = function()
+      local file = vim.fn.expand("%")
+      local line = vim.fn.getline(".")
+      local test_name = line:match('test%s+"([^"]+)"')
+      if not test_name then
+        print("No test found on current line, building all tests instead.")
+        vim.fn.system("zig test -femit-bin=__zig_test_bin__ " .. file)
+      else
+        vim.fn.system("zig test -femit-bin=__zig_test_bin__ " .. file
+          .. ' --test-filter "' .. test_name .. '"')
+      end
       return vim.fn.getcwd() .. "/__zig_test_bin__"
     end,
     cwd = "${workspaceFolder}",
@@ -51,18 +73,17 @@ end
 -- ====================
 vim.keymap.set("n", "<leader>zdb", dap.toggle_breakpoint, { noremap = true, silent = true })
 vim.keymap.set("n", "<leader>zdn", function()
-  local ft = vim.bo.filetype
-  local configs = dap.configurations[ft]
-  if configs and #configs > 0 then
-    dap.run(configs[1])
-  else
-    print("No DAP configuration for filetype: " .. ft)
-  end
+  local configs = dap.configurations.zig
+  dap.run(configs[1])  -- debug all tests
+end, { noremap = true, silent = true })
+vim.keymap.set("n", "<leader>zdt", function()
+  local configs = dap.configurations.zig
+  dap.run(configs[2])  -- debug nearest test
 end, { noremap = true, silent = true })
 vim.keymap.set("n", "<leader>du", dapui.toggle, { noremap = true, silent = true })
 
 -- ====================
--- Zig Test Runner
+-- Terminal Test Runner (no debug binary)
 -- ====================
 local function run_nearest_zig_test()
   local line = vim.fn.getline(".")
@@ -70,20 +91,18 @@ local function run_nearest_zig_test()
   local file = vim.fn.expand("%")
 
   if test_name then
-    vim.cmd("split | terminal zig test -femit-bin=__zig_test_bin__ " .. file
+    vim.cmd("split | terminal zig test " .. file
       .. ' --test-filter "' .. test_name .. '"')
   else
-    print("No test found on current line, running entire file instead.")
-    vim.cmd("split | terminal zig test -femit-bin=__zig_test_bin__ " .. file)
+    vim.cmd("split | terminal zig test " .. file)
   end
 end
 
 local function run_all_zig_tests()
   local file = vim.fn.expand("%")
-  vim.cmd("split | terminal zig test -femit-bin=__zig_test_bin__ " .. file)
+  vim.cmd("split | terminal zig test " .. file)
 end
 
--- Keymaps
 vim.keymap.set("n", "<leader>ztn", run_nearest_zig_test, { noremap = true, silent = true })
 vim.keymap.set("n", "<leader>ztt", run_all_zig_tests, { noremap = true, silent = true })
 
